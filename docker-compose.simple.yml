@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Serviço da API Barbershop (apenas SQLite)
+  barbershop-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbershop-api-simple
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_TYPE=sqlite
+      - DB_DATABASE=/app/data/barbershop.sqlite
+      - DB_SYNCHRONIZE=true
+    volumes:
+      # Volume para persistir banco SQLite
+      - ./data:/app/data
+    networks:
+      - barbershop-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/barbers"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Rede isolada para os serviços
+networks:
+  barbershop-network:
+    driver: bridge
