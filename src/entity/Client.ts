@@ -13,6 +13,9 @@ export class Client {
   email!: string;
 
   @Column()
+  password!: string;
+
+  @Column()
   phone!: string;
 
   @OneToMany(() => Schedule, schedule => schedule.client)

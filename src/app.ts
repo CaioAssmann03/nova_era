@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import express from 'express';
 import { AppDataSource } from './data-source';
+import authRoutes from './routes/authRoutes';
 import barberRoutes from './routes/barberRoutes';
 import barberProfileRoutes from './routes/barberProfileRoutes';
 import clientRoutes from './routes/clientRoutes';
@@ -29,6 +30,7 @@ AppDataSource.initialize()
 
         // Routes
         console.log('Loading routes...');
+        app.use('/api/auth', authRoutes);
         app.use('/api/barbers', barberRoutes);
         app.use('/api/barber-profiles', barberProfileRoutes);
         app.use('/api/clients', clientRoutes);

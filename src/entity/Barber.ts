@@ -14,6 +14,9 @@ export class Barber {
   email!: string;
 
   @Column()
+  password!: string;
+
+  @Column()
   phone!: string;
 
   @OneToMany(() => Schedule, schedule => schedule.barber)

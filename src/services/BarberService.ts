@@ -2,17 +2,20 @@ import { Repository } from 'typeorm';
 import { AppDataSource } from '../data-source';
 import { Barber } from '../entity/Barber';
 import { Schedule } from '../entity/Schedule';
+import { PasswordUtils } from '../utils/passwordUtils';
 import { databaseService } from '../utils/databaseService';
 
 interface CreateBarberData {
     name: string;
     email: string;
+    password: string;
     phone: string;
 }
 
 interface UpdateBarberData {
     name?: string;
     email?: string;
+    password?: string;
     phone?: string;
 }
 
@@ -26,25 +29,47 @@ export class BarberService {
     async createBarber(barberData: CreateBarberData): Promise<Barber> {
         try {
             await databaseService.waitForInitialization();
+            
+            // Validar campos obrigatórios
+            if (!barberData.name || !barberData.email || !barberData.password || !barberData.phone) {
+                const error = new Error('Name, email, password e phone são obrigatórios') as any;
+                error.status = 400;
+                throw error;
+            }
+
             await this.validateUniqueEmail(barberData.email);
             
-            const barber = this.barberRepository.create(barberData);
+            // Criptografar senha
+            const hashedPassword = await PasswordUtils.hashPassword(barberData.password);
+            
+            const barber = this.barberRepository.create({
+                ...barberData,
+                password: hashedPassword
+            });
             return await this.barberRepository.save(barber);
         } catch (error) {
             throw this.handleError(error, 'Error creating barber');
         }
     }
 
-    async getAllBarbers(): Promise<Barber[]> {
+    async getAllBarbers(): Promise<any[]> {
         try {
             await databaseService.waitForInitialization();
-            return await this.barberRepository.find();
+            const barbers = await this.barberRepository.find();
+            // Não retornar senha
+            return barbers.map(b => ({
+                id: b.id,
+                name: b.name,
+                email: b.email,
+                phone: b.phone,
+                profile: b.profile
+            }));
         } catch (error) {
             throw this.handleError(error, 'Error fetching barbers');
         }
     }
 
-    async getBarberById(id: number): Promise<Barber> {
+    async getBarberById(id: number): Promise<any> {
         try {
             const barber = await this.barberRepository.findOne({ 
                 where: { id } 
@@ -56,22 +81,49 @@ export class BarberService {
                 throw error;
             }
             
-            return barber;
+            // Não retornar senha
+            return {
+                id: barber.id,
+                name: barber.name,
+                email: barber.email,
+                phone: barber.phone,
+                profile: barber.profile
+            };
         } catch (error) {
             throw this.handleError(error, 'Error fetching barber');
         }
     }
 
-    async updateBarber(id: number, updateData: UpdateBarberData): Promise<Barber> {
+    async updateBarber(id: number, updateData: UpdateBarberData): Promise<any> {
         try {
-            const barber = await this.getBarberById(id);
+            const barber = await this.barberRepository.findOne({ where: { id } });
+            
+            if (!barber) {
+                const error = new Error('Barber not found') as any;
+                error.status = 404;
+                throw error;
+            }
             
             if (updateData.email && updateData.email !== barber.email) {
                 await this.validateUniqueEmail(updateData.email);
             }
             
+            // Se for atualizar senha, criptografar
+            if (updateData.password) {
+                updateData.password = await PasswordUtils.hashPassword(updateData.password);
+            }
+            
             this.barberRepository.merge(barber, updateData);
-            return await this.barberRepository.save(barber);
+            const updated = await this.barberRepository.save(barber);
+            
+            // Não retornar senha
+            return {
+                id: updated.id,
+                name: updated.name,
+                email: updated.email,
+                phone: updated.phone,
+                profile: updated.profile
+            };
         } catch (error) {
             throw this.handleError(error, 'Error updating barber');
         }
@@ -79,7 +131,13 @@ export class BarberService {
 
     async deleteBarber(id: number): Promise<boolean> {
         try {
-            await this.getBarberById(id);
+            const barber = await this.barberRepository.findOne({ where: { id } });
+            if (!barber) {
+                const error = new Error('Barber not found') as any;
+                error.status = 404;
+                throw error;
+            }
+            
             await this.validateNoActiveSchedules(id);
             
             const result = await this.barberRepository.delete(id);
