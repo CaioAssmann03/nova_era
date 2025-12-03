@@ -1,9 +1,13 @@
 import express from 'express';
 import { ScheduleController } from '../controllers/scheduleController';
+import { AuthMiddleware } from '../middleware/authMiddleware';
 import { validateSchedule, validateNumericId } from '../middleware/validation';
 
 const router = express.Router();
 const scheduleController = new ScheduleController();
+
+// Todas as rotas de schedule requerem autenticação
+router.use(AuthMiddleware.authenticate);
 
 // Schedule routes
 router.post('/', validateSchedule, scheduleController.createSchedule.bind(scheduleController));

@@ -80,6 +80,36 @@ export class ScheduleService {
         }
     }
 
+    async getClientSchedules(clientId: number): Promise<any[]> {
+        try {
+            await databaseService.waitForInitialization();
+            const schedules = await this.scheduleRepository.find({
+                where: { client: { id: clientId } },
+                relations: ['barber', 'client'],
+                order: { appointmentTime: 'ASC' }
+            });
+            
+            return schedules.map(schedule => this.formatScheduleResponse(schedule));
+        } catch (error) {
+            throw this.handleError(error, 'Error fetching client schedules');
+        }
+    }
+
+    async getBarberSchedules(barberId: number): Promise<any[]> {
+        try {
+            await databaseService.waitForInitialization();
+            const schedules = await this.scheduleRepository.find({
+                where: { barber: { id: barberId } },
+                relations: ['barber', 'client'],
+                order: { appointmentTime: 'ASC' }
+            });
+            
+            return schedules.map(schedule => this.formatScheduleResponse(schedule));
+        } catch (error) {
+            throw this.handleError(error, 'Error fetching barber schedules');
+        }
+    }
+
     async getScheduleById(id: number): Promise<any> {
         try {
             const schedule = await this.scheduleRepository.findOne({
