@@ -43,19 +43,18 @@ export class ScheduleService {
             // Verificar disponibilidade do barbeiro (conflito de horários)
             await this.validateBarberAvailability(barberId, appointmentTime);
             
-            // Converter para horário local para salvar no banco (mesma lógica da validação)
+            // CORREÇÃO: Parse correto da data sem conversão de timezone
+            // Se a data vem como "2025-10-18T14:00:00.000", queremos salvar exatamente 14:00
             const inputDate = new Date(appointmentTime);
-            const offsetMinutes = inputDate.getTimezoneOffset();
-            const localDate = new Date(inputDate.getTime() - (offsetMinutes * 60 * 1000));
             
             console.log(`💾 Salvando agendamento:`);
             console.log(`📅 Input: ${appointmentTime}`);
-            console.log(`📅 UTC: ${inputDate.toISOString()}`);
-            console.log(`📅 Local: ${localDate.toISOString()}`);
+            console.log(`📅 Parsed UTC: ${inputDate.toISOString()}`);
+            console.log(`📅 Local time: ${inputDate.getHours()}:${inputDate.getMinutes().toString().padStart(2, '0')}`);
             
-            // Criar agendamento
+            // Criar agendamento - usar a data original sem ajustes de timezone
             const schedule = this.scheduleRepository.create({
-                appointmentTime: localDate,
+                appointmentTime: inputDate,
                 barber,
                 client
             });
@@ -254,19 +253,13 @@ export class ScheduleService {
         // Garantir que appointmentTime seja um objeto Date
         const dateObj = appointmentTime instanceof Date ? appointmentTime : new Date(appointmentTime);
         
-        // CORREÇÃO DE TIMEZONE DEFINITIVA:
-        // Converter UTC para horário local real usando offset
-        const offsetMinutes = dateObj.getTimezoneOffset();
-        const localAppointmentTime = new Date(dateObj.getTime() - (offsetMinutes * 60 * 1000));
-        
-        // Converter para formato SQLite usando o horário local correto
-        const dbTimeStr = localAppointmentTime.toISOString().replace('T', ' ').replace('.000Z', '.000');
+        // Usar a data diretamente sem conversões de timezone
+        // TypeORM/SQLite vai salvar no formato que passarmos
+        const dbTimeStr = dateObj.toISOString().replace('T', ' ').replace('.000Z', '.000');
         
         console.log(`🔍 Validando conflito para barberId=${barberId}`);
         console.log(`📅 Input: ${appointmentTime}`);
-        console.log(`📅 Input UTC: ${dateObj.toISOString()}`);
-        console.log(`📅 Offset: ${offsetMinutes} minutes`);
-        console.log(`📅 Local Time: ${localAppointmentTime.toISOString()}`);
+        console.log(`📅 Date object: ${dateObj.toISOString()}`);
         console.log(`📅 DB Format: ${dbTimeStr}`);
         
         // Buscar agendamentos no mesmo horário exato
@@ -318,42 +311,50 @@ export class ScheduleService {
         
         console.log(`🐛 DEBUG formatDate - Input:`, date, `Type:`, typeof date);
         
-        // Se é string (vem do banco SQLite), fazer parse direto
+        let finalDate: Date;
+        
+        // Se é string (vem do banco SQLite), fazer parse correto
         if (typeof date === 'string') {
             const dateStr = date.toString().trim();
             console.log(`🔧 Processing string:`, dateStr);
             
-            // Formato esperado do SQLite: "2025-10-20 15:00:00.000"
+            // Formato do SQLite: "2025-10-18 14:00:00.000"
+            // Precisamos tratar como horário LOCAL, não UTC
             if (dateStr.includes('-') && dateStr.includes(':')) {
-                const parts = dateStr.split(' ');
+                // Parse manual para evitar timezone automático
+                const parts = dateStr.replace('.000', '').split(' ');
                 if (parts.length >= 2) {
                     const [datePart, timePart] = parts;
-                    const [year, month, day] = datePart.split('-');
-                    const [hours, minutes] = timePart.split(':');
+                    const [year, month, day] = datePart.split('-').map(Number);
+                    const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
                     
-                    const formatted = `${day}/${month}/${year} ${hours}:${minutes}`;
-                    console.log(`✅ Formatted result:`, formatted);
-                    return formatted;
+                    // Criar data como LOCAL time (não UTC)
+                    finalDate = new Date(year, month - 1, day, hours, minutes, seconds);
+                    console.log(`📅 Parsed local date:`, finalDate.toString());
+                } else {
+                    finalDate = new Date(dateStr);
                 }
+            } else {
+                finalDate = new Date(dateStr);
             }
-        }
-        
-        // Fallback para Date objects - NÃO FAZER NEW DATE() aqui
-        if (date instanceof Date) {
+        } else if (date instanceof Date) {
             console.log(`🔧 Processing Date object:`, date.toString());
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            
-            const formatted = `${day}/${month}/${year} ${hours}:${minutes}`;
-            console.log(`✅ Date formatted result:`, formatted);
-            return formatted;
+            finalDate = date;
+        } else {
+            console.log(`❌ Unknown date type:`, date);
+            return String(date);
         }
         
-        console.log(`❌ Could not format date:`, date);
-        return date.toString();
+        // Formatar para exibição
+        const day = String(finalDate.getDate()).padStart(2, '0');
+        const month = String(finalDate.getMonth() + 1).padStart(2, '0');
+        const year = finalDate.getFullYear();
+        const hours = String(finalDate.getHours()).padStart(2, '0');
+        const minutes = String(finalDate.getMinutes()).padStart(2, '0');
+        
+        const formatted = `${day}/${month}/${year} ${hours}:${minutes}`;
+        console.log(`✅ Final formatted result:`, formatted);
+        return formatted;
     }
 
     // Tratamento de erros

@@ -7,7 +7,21 @@ export class Schedule {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ type: 'text' }) // SQLite usa 'text' para datetime
+  @Column({ 
+    type: 'datetime',
+    transformer: {
+      to: (value: Date) => {
+        if (!value) return null;
+        // Salva como ISO string sem conversão de timezone
+        return value.toISOString();
+      },
+      from: (value: string) => {
+        if (!value) return null;
+        // Recupera como Date mantendo o horário original
+        return new Date(value);
+      }
+    }
+  })
   appointmentTime!: Date;
 
   @ManyToOne(() => Barber, barber => barber.schedules, { 

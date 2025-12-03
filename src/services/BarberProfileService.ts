@@ -19,6 +19,11 @@ export class BarberProfileService {
       throw new Error('Barbeiro não encontrado');
     }
 
+    // Converter workingHours para string se necessário
+    if (profileData.workingHours && typeof profileData.workingHours === 'object') {
+      profileData.workingHours = JSON.stringify(profileData.workingHours);
+    }
+
     // Validar horários de trabalho se fornecidos
     if (profileData.workingHours) {
       this.validateWorkingHours(profileData.workingHours);

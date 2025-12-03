@@ -94,13 +94,32 @@ export const validateBarberProfile = (req: Request, res: Response, next: NextFun
         return;
     }
     
-    // Validar workingHours se fornecido (deve ser JSON válido)
-    if (workingHours) {
-        try {
-            JSON.parse(workingHours);
-        } catch {
+    // Validar workingHours se fornecido
+    if (workingHours !== undefined) {
+        // Se é um objeto, converter para string JSON
+        if (typeof workingHours === 'object') {
+            try {
+                req.body.workingHours = JSON.stringify(workingHours);
+            } catch {
+                res.status(400).json({
+                    message: "Working hours object is invalid"
+                });
+                return;
+            }
+        } 
+        // Se é uma string, verificar se é JSON válido
+        else if (typeof workingHours === 'string') {
+            try {
+                JSON.parse(workingHours);
+            } catch {
+                res.status(400).json({
+                    message: "Working hours must be valid JSON format"
+                });
+                return;
+            }
+        } else {
             res.status(400).json({
-                message: "Working hours must be valid JSON format"
+                message: "Working hours must be an object or JSON string"
             });
             return;
         }
